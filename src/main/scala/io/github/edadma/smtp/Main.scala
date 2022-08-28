@@ -30,7 +30,22 @@ import scala.util.{Failure, Success}
   object SimpleHandlerProvider extends HandlerProvider:
     def handler: Option[Handler] = Some(new SimpleHandler)
 
-    class SimpleHandler extends Handler
+    class SimpleHandler extends Handler:
+      def hello(domain: String): Future[Response] =
+        println(s"hello $domain")
+        Future(new Response().send("250 OK"))
+
+      def from(sender: String): Future[Response] =
+        println(s"from $sender")
+        Future(new Response().send("250 OK"))
+
+      def to(recipient: String): Future[Response] =
+        println(s"to $recipient")
+        Future(new Response().send("250 OK"))
+
+      def message(headers: VectorMap[String, String], body: String): Future[Response] =
+        println(s"message $headers \"$body\"")
+        Future(new Response().send("250 OK"))
 
   val provider = SimpleHandlerProvider
 
@@ -126,32 +141,32 @@ import scala.util.{Failure, Success}
     respond(new Response().send(s"220 $domain Simple Mail Transfer Service Ready"), client)
   end connectionCallback
 
-  class Response(var data: IndexedSeq[Byte] = null, var end: Boolean = false):
-    def send(s: String): Response =
-      data = (s ++ "\r\n").getBytes.toIndexedSeq
-      this
-
-  def close(client: TCP): Unit =
-    client.readStop
-
-    if client.isWritable then client.shutdown(_.close())
-    else if client.isClosing then client.dispose()
-    else client.close()
-
-  def respond(res: Response, client: TCP): Boolean =
-    if res.end then client.readStop
-
-    if client.isWritable then
-      if res.data != null then client.write(res.data)
-      if res.end then client.shutdown(_.close())
-      res.end
-    else if client.isClosing then
-      client.dispose()
-      true
-    else
-      client.close()
-      true
-
   server.bind("0.0.0.0", port, flags)
   server.listen(backlog, connectionCallback)
   loop.run()
+
+class Response(var data: IndexedSeq[Byte] = null, var end: Boolean = false):
+  def send(s: String): Response =
+    data = (s ++ "\r\n").getBytes.toIndexedSeq
+    this
+
+def close(client: TCP): Unit =
+  client.readStop
+
+  if client.isWritable then client.shutdown(_.close())
+  else if client.isClosing then client.dispose()
+  else client.close()
+
+def respond(res: Response, client: TCP): Boolean =
+  if res.end then client.readStop
+
+  if client.isWritable then
+    if res.data != null then client.write(res.data)
+    if res.end then client.shutdown(_.close())
+    res.end
+  else if client.isClosing then
+    client.dispose()
+    true
+  else
+    client.close()
+    true
