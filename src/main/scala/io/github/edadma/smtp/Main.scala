@@ -21,8 +21,8 @@ import scala.util.{Failure, Success}
   val provider = SimpleHandlerProvider
 
   val HELOr = """HELO (.+)""".r
-  val MAILr = """MAIL FROM:(.+)""".r
-  val RCPTr = """RCPT TO:(.+)""".r
+  val MAILr = """MAIL FROM:<(.+)>""".r
+  val RCPTr = """RCPT TO:<(.+)>""".r
 
   def exchange(
       parser: LineParser,
@@ -40,7 +40,7 @@ import scala.util.{Failure, Success}
           state.state = ExchangeState.Headers
           Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
         case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
-        case _      => Future(new Response(end = true).send("500 bad command"))
+        case _      => Future(new Response().send("500 bad command"))
     else if line == "." then
       state.state = ExchangeState.Command
       handler.message(state.headers to VectorMap, state.body.toString)
@@ -90,6 +90,8 @@ import scala.util.{Failure, Success}
           while i < size do
             parser send buf(i)
             i += 1
+
+          println(s">>> ${buf.string(size)}")
 
           if parser.isFinal then
             parser.reset()
