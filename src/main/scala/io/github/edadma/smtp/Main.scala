@@ -98,7 +98,7 @@ import scala.util.{Failure, Success}
                 try respond(res, client)
                 catch case e: Exception => close(client)
               case Failure(e) =>
-                val res = new Response()
+                val res = new Response(end = true)
 
                 exceptionHandler(res, e)
                 respond(res, client)
