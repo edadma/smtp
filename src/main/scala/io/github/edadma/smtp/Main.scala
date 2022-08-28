@@ -18,35 +18,6 @@ import scala.util.{Failure, Success}
   var exceptionHandler: (Response, Throwable) => Unit =
     (res, ex) => res.send(s"500 exception '${ex.getClass}': ${ex.getMessage}")
 
-  abstract class Handler:
-    def hello(domain: String): Future[Response]
-    def from(sender: String): Future[Response]
-    def to(recipient: String): Future[Response]
-    def message(headers: VectorMap[String, String], body: String): Future[Response]
-
-  abstract class HandlerProvider:
-    def handler: Option[Handler]
-
-  object SimpleHandlerProvider extends HandlerProvider:
-    def handler: Option[Handler] = Some(new SimpleHandler)
-
-    class SimpleHandler extends Handler:
-      def hello(domain: String): Future[Response] =
-        println(s"hello $domain")
-        Future(new Response().send("250 OK"))
-
-      def from(sender: String): Future[Response] =
-        println(s"from $sender")
-        Future(new Response().send("250 OK"))
-
-      def to(recipient: String): Future[Response] =
-        println(s"to $recipient")
-        Future(new Response().send("250 OK"))
-
-      def message(headers: VectorMap[String, String], body: String): Future[Response] =
-        println(s"message $headers \"$body\"")
-        Future(new Response().send("250 OK"))
-
   val provider = SimpleHandlerProvider
 
   val HELOr = """HELO (.+)""".r
@@ -90,6 +61,7 @@ import scala.util.{Failure, Success}
             state.headers(line.substring(0, idx)) = line.substring(idx + 1).trim
             Future(new Response())
     else
+      if state.body.nonEmpty then state.body += '\n'
       state.body ++= line
       Future(new Response())
 
@@ -143,13 +115,6 @@ import scala.util.{Failure, Success}
   server.bind("0.0.0.0", port, flags)
   server.listen(backlog, connectionCallback)
   loop.run()
-
-class Response(var data: IndexedSeq[Byte] = null, var end: Boolean = false):
-  def send(s: String): Response =
-    data = (s ++ "\r\n").getBytes.toIndexedSeq
-    this
-
-  override def toString: String = new String(data.toArray)
 
 def close(client: TCP): Unit =
   client.readStop
