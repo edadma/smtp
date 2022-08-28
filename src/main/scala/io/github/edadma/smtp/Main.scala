@@ -59,8 +59,6 @@ import scala.util.{Failure, Success}
       state: Exchange,
   ): Future[Response] =
     val line = parser.toString
-    val headers = new mutable.LinkedHashMap[String, String]
-    val body = new StringBuilder
 
     if state.state == ExchangeState.Command then
       line match
@@ -74,37 +72,40 @@ import scala.util.{Failure, Success}
         case _      => Future(new Response(end = true).send("500 bad command"))
     else if line == "." then
       state.state = ExchangeState.Command
-      handler.message(headers to VectorMap, body.toString)
+      handler.message(state.headers to VectorMap, state.body.toString)
     else if state.state == ExchangeState.Headers then
       if line == "" then
         state.state = ExchangeState.Body
         Future(new Response())
       else if line startsWith " " then
-        headers.lastOption match
+        state.headers.lastOption match
           case Some((k, v)) =>
-            headers(k) = v ++ " " ++ line.trim
+            state.headers(k) = v ++ " " ++ line.trim
             Future(new Response())
           case None => Future(new Response(end = true).send("500 continued header without previous header line"))
       else
         line indexOf ':' match
           case -1 => Future(new Response(end = true).send("500 bad header"))
           case idx =>
-            headers(line.substring(0, idx)) = line.substring(idx + 1).trim
+            state.headers(line.substring(0, idx)) = line.substring(idx + 1).trim
             Future(new Response())
     else
-      body ++= line
+      state.body ++= line
       Future(new Response())
 
   enum ExchangeState:
     case Command, Headers, Body
 
-  class Exchange(var state: ExchangeState)
+  class Exchange:
+    var state: ExchangeState = ExchangeState.Command
+    val headers = new mutable.LinkedHashMap[String, String]
+    val body = new StringBuilder
 
   def connectionCallback(server: TCP, status: Int): Unit =
     val client = defaultLoop.tcp
     val parser = new LineParser
     val handler = provider.handler
-    val state = Exchange(ExchangeState.Command)
+    val state = new Exchange
 
     def readCallback(client: TCP, size: Int, buf: Buffer): Unit =
       if size < 0 then
