@@ -6,10 +6,10 @@ import io.github.spritzsn.async.*
 import scala.collection.immutable.VectorMap
 import scala.collection.mutable
 import scala.concurrent.Future
+import scala.io.Codec
 import scala.util.{Failure, Success}
 
 @main def run(): Unit =
-
   val domain = "example.com"
   val server = defaultLoop.tcp
   val port = 3000
@@ -29,41 +29,49 @@ import scala.util.{Failure, Success}
       handler: Handler,
       state: Exchange,
   ): Future[Response] =
-    val line = parser.toString
+    val line = bytes2string(parser.lines.head)
 
     if state.state == ExchangeState.Command then
-      line match
-        case HELOr(domain) => handler.hello(domain)
-        case MAILr(from)   => handler.from(from)
-        case RCPTr(to)     => handler.to(to)
-        case "DATA" =>
-          state.state = ExchangeState.Headers
-          Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
-        case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
-        case _      => Future(new Response().send("500 bad command"))
-    else if line == "." then
-      state.state = ExchangeState.Command
-      handler.message(state.headers to VectorMap, state.body.toString)
-    else if state.state == ExchangeState.Headers then
-      if line == "" then
-        state.state = ExchangeState.Body
-        Future(new Response())
-      else if line startsWith " " then
-        state.headers.lastOption match
-          case Some((k, v)) =>
-            state.headers(k) = v ++ " " ++ line.trim
-            Future(new Response())
-          case None => Future(new Response(end = true).send("500 continued header without previous header line"))
-      else
-        line indexOf ':' match
-          case -1 => Future(new Response(end = true).send("500 bad header"))
-          case idx =>
-            state.headers(line.substring(0, idx)) = line.substring(idx + 1).trim
-            Future(new Response())
-    else
-      if state.body.nonEmpty then state.body += '\n'
-      state.body ++= line
+      if parser.lines.length == 1 then
+        line match
+          case HELOr(domain) => handler.hello(domain)
+          case MAILr(from)   => handler.from(from)
+          case RCPTr(to)     => handler.to(to)
+          case "DATA" =>
+            state.state = ExchangeState.Headers
+            Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
+          case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
+          case _      => Future(new Response().send("500 bad command"))
+      else Future(new Response().send("500 more than one line received"))
+    else {
+      var i = 0
+
+      while i < parser.lines.length do
+        val line = bytes2string(parser.lines(i))
+
+        if line == "." then
+          if i == parser.lines.length - 1 then
+            state.state = ExchangeState.Command
+            return handler.message(state.headers to VectorMap, state.body.toString)
+          else return Future(new Response().send("500 line received past end of message body"))
+        else if state.state == ExchangeState.Headers then
+          if line == "" then state.state = ExchangeState.Body
+          else if line startsWith " " then
+            state.headers.lastOption match
+              case Some((k, v)) => state.headers(k) = v ++ " " ++ line.trim
+              case None =>
+                return Future(new Response(end = true).send("500 continued header without previous header line"))
+          else
+            line indexOf ':' match
+              case -1  => return Future(new Response(end = true).send("500 bad header"))
+              case idx => state.headers(line.substring(0, idx)) = line.substring(idx + 1).trim
+        else
+          if state.body.nonEmpty then state.body += '\n'
+          state.body ++= line
+      end while
+
       Future(new Response())
+    }
 
   enum ExchangeState:
     case Command, Headers, Body
@@ -93,8 +101,7 @@ import scala.util.{Failure, Success}
 
           println(s">>> ${buf.string(size)}")
 
-          if parser.isFinal then
-            parser.reset()
+          if parser.state == parser.lineState then
             exchange(parser, handler.get, state) onComplete {
               case Success(res) =>
                 try respond(res, client)
@@ -105,6 +112,7 @@ import scala.util.{Failure, Success}
                 exceptionHandler(res, e)
                 respond(res, client)
             }
+            parser.reset()
         catch case e: Exception => respond(new Response().send(s"500 ${e.getMessage}"), client)
     end readCallback
 
@@ -138,3 +146,5 @@ def respond(res: Response, client: TCP): Boolean =
   else
     client.close()
     true
+
+def bytes2string(bytes: collection.IndexedSeq[Byte]): String = new String(bytes.toArray, Codec.UTF8.charSet)

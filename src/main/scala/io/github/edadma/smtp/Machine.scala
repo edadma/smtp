@@ -3,6 +3,8 @@ package io.github.edadma.smtp
 abstract class Machine:
   val start: State
 
+  def init(): Unit = {}
+
   class PseudoState extends State { def on = _ => () }
 
   case object INITIAL extends PseudoState
@@ -48,7 +50,9 @@ abstract class Machine:
       if !state.on.isDefinedAt(a) then sys.error(s"state $state not defined at value $a")
       state on a
 
-    if state == INITIAL then transition(start)
+    if state == INITIAL then
+      init()
+      transition(start)
     received += 1
     send(a)
 

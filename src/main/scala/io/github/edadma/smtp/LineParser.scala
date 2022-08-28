@@ -1,17 +1,21 @@
 package io.github.edadma.smtp
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.immutable.ArraySeq
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.io.Codec
 
 class LineParser extends Machine:
-  val start: State = commandState
+  val start: State = lineState
   val line = new ArrayBuffer[Byte]
+  val lines = new ListBuffer[ArraySeq[Byte]]
 
   def parseError: Nothing = sys.error("line parsing error")
 
-  case object commandState extends State:
-    override def enter(): Unit = line.clear()
+  override def init(): Unit =
+    line.clear()
+    lines.clear()
 
+  case object lineState extends State:
     def on = {
       case '\r' => transition(eolState)
       case b    => line += b.toByte
@@ -19,8 +23,11 @@ class LineParser extends Machine:
 
   case object eolState extends State:
     def on = {
-      case '\n' => transition(FINAL)
-      case _    => parseError
+      case '\n' =>
+        lines += line to ArraySeq
+        line.clear()
+        transition(lineState)
+      case b =>
+        line += b.toByte
+        transition(lineState)
     }
-
-  override def toString: String = new String(line.toArray, Codec.UTF8.charSet)
