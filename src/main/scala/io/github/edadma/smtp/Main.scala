@@ -36,6 +36,9 @@ import scala.util.{Failure, Success}
           case RCPTr(to) =>
             session("to") = to
             "250 OK" -> false
+          case "DATA" =>
+            session("data") = ""
+            "354 Start mail input, end with <CRLF>.<CRLF>" -> false
           case _ => "500 bad command" -> true
 
       Future(new Response(end = end).send(res))
