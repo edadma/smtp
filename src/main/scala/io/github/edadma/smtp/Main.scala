@@ -62,31 +62,7 @@ import scala.util.{Failure, Success}
     val headers = new mutable.LinkedHashMap[String, String]
     val body = new StringBuilder
 
-    if state != ExchangeState.Command then
-      if line == "." then
-        state.state = ExchangeState.Command
-        handler.message(headers to VectorMap, body.toString)
-        Future(new Response(end = true).send("250 OK"))
-      else if state == ExchangeState.Headers then
-        if line == "" then
-          state.state = ExchangeState.Body
-          Future(new Response())
-        else if line startsWith " " then
-          headers.lastOption match
-            case Some((k, v)) =>
-              headers(k) = v ++ " " ++ line.trim
-              Future(new Response())
-            case None => Future(new Response(end = true).send("500 continued header without previous header line"))
-        else
-          line indexOf ':' match
-            case -1 => Future(new Response(end = true).send("500 bad header"))
-            case idx =>
-              headers(line.substring(0, idx)) = line.substring(idx + 1).trim
-              Future(new Response())
-      else
-        body ++= line
-        Future(new Response())
-    else
+    if state == ExchangeState.Command then
       line match
         case HELOr(domain) => handler.hello(domain)
         case MAILr(from)   => handler.from(from)
@@ -96,6 +72,28 @@ import scala.util.{Failure, Success}
           Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
         case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
         case _      => Future(new Response(end = true).send("500 bad command"))
+    else if line == "." then
+      state.state = ExchangeState.Command
+      handler.message(headers to VectorMap, body.toString)
+    else if state == ExchangeState.Headers then
+      if line == "" then
+        state.state = ExchangeState.Body
+        Future(new Response())
+      else if line startsWith " " then
+        headers.lastOption match
+          case Some((k, v)) =>
+            headers(k) = v ++ " " ++ line.trim
+            Future(new Response())
+          case None => Future(new Response(end = true).send("500 continued header without previous header line"))
+      else
+        line indexOf ':' match
+          case -1 => Future(new Response(end = true).send("500 bad header"))
+          case idx =>
+            headers(line.substring(0, idx)) = line.substring(idx + 1).trim
+            Future(new Response())
+    else
+      body ++= line
+      Future(new Response())
 
   enum ExchangeState:
     case Command, Headers, Body
