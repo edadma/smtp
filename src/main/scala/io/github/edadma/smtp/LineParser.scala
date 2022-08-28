@@ -1,10 +1,11 @@
 package io.github.edadma.smtp
 
 import scala.collection.mutable.ArrayBuffer
+import scala.io.Codec
 
 class LineParser extends Machine:
   val start: State = commandState
-  val line = new StringBuilder // todo: unicode? new ArrayBuffer[Byte]
+  val line = new ArrayBuffer[Byte]
 
   def parseError: Nothing = sys.error("line parsing error")
 
@@ -14,7 +15,7 @@ class LineParser extends Machine:
 
     def on = {
       case '\r' => transition(eolState)
-      case b    => line += b.toChar
+      case b    => line += b.toByte
     }
 
   case object eolState extends State:
@@ -22,3 +23,5 @@ class LineParser extends Machine:
       case '\n' => transition(FINAL)
       case _    => parseError
     }
+
+  override def toString: String = new String(line.toArray, Codec.UTF8.charSet)
