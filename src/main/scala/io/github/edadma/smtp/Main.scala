@@ -62,7 +62,7 @@ import scala.util.{Failure, Success}
     val headers = new mutable.LinkedHashMap[String, String]
     val body = new StringBuilder
 
-    if state == ExchangeState.Command then
+    if state.state == ExchangeState.Command then
       line match
         case HELOr(domain) => handler.hello(domain)
         case MAILr(from)   => handler.from(from)
@@ -75,7 +75,7 @@ import scala.util.{Failure, Success}
     else if line == "." then
       state.state = ExchangeState.Command
       handler.message(headers to VectorMap, body.toString)
-    else if state == ExchangeState.Headers then
+    else if state.state == ExchangeState.Headers then
       if line == "" then
         state.state = ExchangeState.Body
         Future(new Response())
@@ -147,6 +147,8 @@ class Response(var data: IndexedSeq[Byte] = null, var end: Boolean = false):
   def send(s: String): Response =
     data = (s ++ "\r\n").getBytes.toIndexedSeq
     this
+
+  override def toString: String = new String(data.toArray)
 
 def close(client: TCP): Unit =
   client.readStop

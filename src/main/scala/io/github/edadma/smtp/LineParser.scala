@@ -9,9 +9,8 @@ class LineParser extends Machine:
 
   def parseError: Nothing = sys.error("line parsing error")
 
-  case object commandState extends State: // todo: parse commands early for efficiency
+  case object commandState extends State:
     override def enter(): Unit = line.clear()
-    override def exit(): Unit = if line.isEmpty then parseError
 
     def on = {
       case '\r' => transition(eolState)
