@@ -23,7 +23,8 @@ import scala.util.{Failure, Success}
   val HELORegex = """HELO (.+)""".r
   val MAILRegex = """MAIL FROM:<(.+)>""".r
   val RCPTRegex = """RCPT TO:<(.+)>""".r
-  val NOOPRegex = "NOOP(?: .+)?".r
+  val NOOPRegex = "NOOP(?: (.+))?".r
+  val HELPRegex = "HELP(?: (.+))?".r
 
 //  implicit class RegexOps(sc: StringContext) {
 //    def r = new util.matching.Regex(sc.parts.mkString, sc.parts.tail.map(_ => "x"): _*)
@@ -45,8 +46,9 @@ import scala.util.{Failure, Success}
           case "DATA" =>
             state.state = ExchangeState.Headers
             Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
-          case "RSET"                         => handler.reset
-          case noop if NOOPRegex matches noop => Future(new Response().send("250 OK"))
+          case "RSET"       => handler.reset
+          case NOOPRegex(_) => Future(new Response().send("250 OK"))
+          case HELPRegex(_) => Future(new Response().send("214 https://www.rfc-editor.org/rfc/rfc5321"))
           case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
           case _      => Future(new Response().send("500 bad command"))
       else Future(new Response().send("500 more than one line received"))
