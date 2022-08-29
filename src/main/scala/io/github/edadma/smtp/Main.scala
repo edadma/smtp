@@ -40,6 +40,7 @@ import scala.util.{Failure, Success}
           case "DATA" =>
             state.state = ExchangeState.Headers
             Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
+          case "RSET" => handler.reset
           case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
           case _      => Future(new Response().send("500 bad command"))
       else Future(new Response().send("500 more than one line received"))

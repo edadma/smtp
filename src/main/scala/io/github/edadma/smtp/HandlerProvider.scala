@@ -14,6 +14,8 @@ abstract class Handler:
 
   def message(headers: VectorMap[String, String], body: String): Future[Response]
 
+  def reset: Future[Response]
+
 abstract class HandlerProvider:
   def handler: Option[Handler]
 
@@ -35,4 +37,7 @@ object SimpleHandlerProvider extends HandlerProvider:
 
     def message(headers: VectorMap[String, String], body: String): Future[Response] =
       println(s"message $headers \"$body\"")
+      Future(new Response().send("250 OK"))
+
+    def reset: Future[Response] =
       Future(new Response().send("250 OK"))
