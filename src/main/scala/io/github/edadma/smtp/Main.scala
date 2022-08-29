@@ -99,7 +99,8 @@ import scala.util.{Failure, Success}
             parser send buf(i)
             i += 1
 
-          println(s">>> ${buf.string(size)}")
+          println(s">>> ($size) ${buf.string(size)}")
+          println(parser.lines map bytes2string)
 
           if parser.state == parser.lineState then
             exchange(parser, handler.get, state) onComplete {
