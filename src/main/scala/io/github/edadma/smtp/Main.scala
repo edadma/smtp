@@ -52,7 +52,7 @@ import scala.util.{Failure, Success}
           case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
           case _      => Future(new Response().send("500 bad command"))
       else Future(new Response().send("500 more than one line received"))
-    else {
+    else
       var i = 0
 
       while i < parser.lines.length do
@@ -82,7 +82,6 @@ import scala.util.{Failure, Success}
       end while
 
       Future(new Response())
-    }
 
   enum ExchangeState:
     case Command, Headers, Body
