@@ -10,7 +10,7 @@ abstract class Carrier:
 
   def from(sender: String): Future[Response]
 
-  def to(recipient: String): Future[Response]
+  def to(mailbox: String, domain: String): Future[Response]
 
   def message(headers: VectorMap[String, String], body: String): Future[Response]
 
@@ -31,8 +31,8 @@ object DebugCarrierProvider$ extends CarrierProvider:
       println(s"from $sender")
       Future(Response(250))
 
-    def to(recipient: String): Future[Response] =
-      println(s"to $recipient")
+    def to(mailbox: String, domain: String): Future[Response] =
+      println(s"to $mailbox@$domain")
       Future(Response(250))
 
     def message(headers: VectorMap[String, String], body: String): Future[Response] =

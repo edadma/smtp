@@ -22,7 +22,7 @@ import scala.util.{Failure, Success}
 
   val HELORegex = """HELO (.+)""".r
   val MAILRegex = """MAIL FROM:<(.+)>""".r
-  val RCPTRegex = """RCPT TO:<(.+)>""".r
+  val RCPTRegex = """RCPT TO:<(.+)@(.+)>""".r
   val NOOPRegex = "NOOP(?: (.+))?".r
   val HELPRegex = "HELP(?: (.+))?".r
 
@@ -40,9 +40,9 @@ import scala.util.{Failure, Success}
     if state.state == ExchangeState.Command then
       if parser.lines.length == 1 then
         line match
-          case HELORegex(domain) => handler.hello(domain)
-          case MAILRegex(from)   => handler.from(from)
-          case RCPTRegex(to)     => handler.to(to)
+          case HELORegex(domain)          => handler.hello(domain)
+          case MAILRegex(email)           => handler.from(email)
+          case RCPTRegex(mailbox, domain) => handler.to(mailbox, domain)
           case "DATA" =>
             state.state = ExchangeState.Headers
             Future(Response(354))
