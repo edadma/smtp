@@ -1,2 +1,2 @@
 # curl smtp://mail.example.com --mail-from myself@example.com --mail-rcpt receiver@example.com --upload-file email.txt
-curl -v smtp://localhost:3000 --mail-from myself@example.com --mail-rcpt receiver@example.com --upload-file email-crlf.txt
+curl -v smtp://localhost:3000 --mail-from myself@example.com --mail-rcpt ed@example.com --upload-file email-crlf.txt

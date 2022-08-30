@@ -19,7 +19,7 @@ abstract class Carrier:
 abstract class CarrierProvider:
   def handler: Option[Carrier]
 
-object DebugCarrierProvider$ extends CarrierProvider:
+object DebugCarrierProvider extends CarrierProvider:
   def handler: Option[Carrier] = Some(new DebugCarrier)
 
   class DebugCarrier extends Carrier:

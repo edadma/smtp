@@ -3,6 +3,7 @@ package io.github.edadma.smtp
 import io.github.spritzsn.libuv.*
 import io.github.spritzsn.async.*
 
+import java.nio.file.Paths
 import scala.collection.immutable.VectorMap
 import scala.collection.mutable
 import scala.concurrent.Future
@@ -18,7 +19,7 @@ import scala.util.{Failure, Success}
   var exceptionHandler: (Response, Throwable) => Unit =
     (res, ex) => res.send(s"500 exception '${ex.getClass}': ${ex.getMessage}")
 
-  val provider = DebugCarrierProvider$
+  val provider = FSCarrierProvider(Paths.get("mailboxes"))
 
   val HELORegex = """HELO (.+)""".r
   val MAILRegex = """MAIL FROM:<(.+)>""".r
