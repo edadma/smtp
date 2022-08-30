@@ -18,7 +18,7 @@ import scala.util.{Failure, Success}
   var exceptionHandler: (Response, Throwable) => Unit =
     (res, ex) => res.send(s"500 exception '${ex.getClass}': ${ex.getMessage}")
 
-  val provider = SimpleHandlerProvider
+  val provider = DebugCarrierProvider$
 
   val HELORegex = """HELO (.+)""".r
   val MAILRegex = """MAIL FROM:<(.+)>""".r
@@ -32,7 +32,7 @@ import scala.util.{Failure, Success}
 
   def exchange(
       parser: LineParser,
-      handler: Handler,
+      handler: Carrier,
       state: Exchange,
   ): Future[Response] =
     val line = bytes2string(parser.lines.head)
@@ -45,13 +45,13 @@ import scala.util.{Failure, Success}
           case RCPTRegex(to)     => handler.to(to)
           case "DATA" =>
             state.state = ExchangeState.Headers
-            Future(new Response().send("354 Start mail input, end with <CRLF>.<CRLF>"))
+            Future(Response(354))
           case "RSET"       => handler.reset
-          case NOOPRegex(_) => Future(new Response().send("250 OK"))
-          case HELPRegex(_) => Future(new Response().send("214 https://www.rfc-editor.org/rfc/rfc5321"))
+          case NOOPRegex(_) => Future(Response(250))
+          case HELPRegex(_) => Future(Response(214))
           case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
-          case _      => Future(new Response().send("500 bad command"))
-      else Future(new Response().send("500 more than one line received"))
+          case _      => Future(Response(500))
+      else Future(Response(503))
     else
       var i = 0
 
@@ -62,17 +62,16 @@ import scala.util.{Failure, Success}
           if i == parser.lines.length - 1 then
             state.state = ExchangeState.Command
             return handler.message(state.headers to VectorMap, state.body.toString)
-          else return Future(new Response().send("500 line received past end of message body"))
+          else return Future(Response(503))
         else if state.state == ExchangeState.Headers then
           if line == "" then state.state = ExchangeState.Body
           else if line startsWith " " then
             state.headers.lastOption match
               case Some((k, v)) => state.headers(k) = v ++ " " ++ line.trim
-              case None =>
-                return Future(new Response(end = true).send("500 continued header without previous header line"))
+              case None         => return Future(Response(501))
           else
             line indexOf ':' match
-              case -1  => return Future(new Response(end = true).send("500 bad header"))
+              case -1  => return Future(Response(501))
               case idx => state.headers(line.substring(0, idx)) = line.substring(idx + 1).trim
         else
           if state.body.nonEmpty then state.body += '\n'
@@ -92,42 +91,44 @@ import scala.util.{Failure, Success}
     val body = new StringBuilder
 
   def connectionCallback(server: TCP, status: Int): Unit =
-    val client = defaultLoop.tcp
-    val parser = new LineParser
-    val handler = provider.handler
-    val state = new Exchange
+    if status < 0 then Console.err.println(s"connection error: ${strError(status)}")
+    else
+      val client = defaultLoop.tcp
+      val parser = new LineParser
+      val handler = provider.handler
+      val state = new Exchange
 
-    def readCallback(client: TCP, size: Int, buf: Buffer): Unit =
-      if size < 0 then
-        client.readStop
-        if size != eof then println(s"error in read callback: ${errName(size)}: ${strError(size)}") // todo
-      else if size > 0 then
-        try
-          var i = 0
+      def readCallback(client: TCP, size: Int, buf: Buffer): Unit =
+        if size < 0 then
+          client.readStop
+          if size != eof then println(s"error in read callback: ${errName(size)}: ${strError(size)}") // todo
+        else if size > 0 then
+          try
+            var i = 0
 
-          while i < size do
-            parser send buf(i)
-            i += 1
+            while i < size do
+              parser send buf(i)
+              i += 1
 
-          if parser.state == parser.lineState then
-            exchange(parser, handler.get, state) onComplete {
-              case Success(res) =>
-                try respond(res, client)
-                catch case e: Exception => close(client)
-              case Failure(e) =>
-                val res = new Response(end = true)
+            if parser.state == parser.lineState then
+              exchange(parser, handler.get, state) onComplete {
+                case Success(res) =>
+                  try respond(res, client)
+                  catch case e: Exception => close(client)
+                case Failure(e) =>
+                  val res = new Response(end = true)
 
-                exceptionHandler(res, e)
-                respond(res, client)
-            }
-            parser.reset()
-        catch case e: Exception => respond(new Response().send(s"500 ${e.getMessage}"), client)
-    end readCallback
+                  exceptionHandler(res, e)
+                  respond(res, client)
+              }
+              parser.reset()
+          catch case e: Exception => respond(new Response().send(s"500 ${e.getMessage}"), client)
+      end readCallback
 
-    server accept client
-    client readStart readCallback
-    // todo: handler could be None
-    respond(new Response().send(s"220 $domain Simple Mail Transfer Service Ready"), client)
+      server accept client
+      client readStart readCallback
+      // todo: handler could be None
+      respond(new Response().send(s"220 $domain Simple Mail Transfer Service Ready"), client)
   end connectionCallback
 
   server.bind("0.0.0.0", port, flags)

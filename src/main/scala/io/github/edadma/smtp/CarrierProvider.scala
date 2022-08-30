@@ -5,7 +5,7 @@ import scala.concurrent.Future
 
 import io.github.spritzsn.async.*
 
-abstract class Handler:
+abstract class Carrier:
   def hello(domain: String): Future[Response]
 
   def from(sender: String): Future[Response]
@@ -16,28 +16,28 @@ abstract class Handler:
 
   def reset: Future[Response]
 
-abstract class HandlerProvider:
-  def handler: Option[Handler]
+abstract class CarrierProvider:
+  def handler: Option[Carrier]
 
-object SimpleHandlerProvider extends HandlerProvider:
-  def handler: Option[Handler] = Some(new SimpleHandler)
+object DebugCarrierProvider$ extends CarrierProvider:
+  def handler: Option[Carrier] = Some(new DebugCarrier)
 
-  class SimpleHandler extends Handler:
+  class DebugCarrier extends Carrier:
     def hello(domain: String): Future[Response] =
       println(s"hello $domain")
-      Future(new Response().send("250 OK"))
+      Future(Response(250))
 
     def from(sender: String): Future[Response] =
       println(s"from $sender")
-      Future(new Response().send("250 OK"))
+      Future(Response(250))
 
     def to(recipient: String): Future[Response] =
       println(s"to $recipient")
-      Future(new Response().send("250 OK"))
+      Future(Response(250))
 
     def message(headers: VectorMap[String, String], body: String): Future[Response] =
       println(s"message $headers \"$body\"")
-      Future(new Response().send("250 OK"))
+      Future(Response(250))
 
     def reset: Future[Response] =
-      Future(new Response().send("250 OK"))
+      Future(Response(250))
