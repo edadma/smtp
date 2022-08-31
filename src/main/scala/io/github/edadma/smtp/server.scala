@@ -130,6 +130,7 @@ def server(domain: String, port: Int, flags: Int = 0, backlog: Int = 4096): Unit
 
   server.bind("0.0.0.0", port, flags)
   server.listen(backlog, connectionCallback)
+  println(s"listening $domain:$port")
   loop.run()
 
 def close(client: TCP): Unit =
