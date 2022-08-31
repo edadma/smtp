@@ -10,12 +10,12 @@ import scala.concurrent.Future
 import scala.io.Codec
 import scala.util.{Failure, Success}
 
-def server(domain: String, port: Int, flags: Int = 0, backlog: Int = 4096): Unit =
+def server(hostname: String, port: Int, flags: Int = 0, backlog: Int = 4096): Unit =
   val server = defaultLoop.tcp
   var exceptionHandler: (Response, Throwable) => Unit =
     (res, ex) => res.send(s"500 exception '${ex.getClass}': ${ex.getMessage}")
 
-  val provider = FSCarrierProvider(Paths.get("mailboxes"))
+  val provider = FSCarrierProvider(Paths.get("mailboxes"), hostname)
 
   val HELORegex = """HELO (.+)""".r
   val MAILRegex = """MAIL FROM:<(.+)>""".r
@@ -46,7 +46,7 @@ def server(domain: String, port: Int, flags: Int = 0, backlog: Int = 4096): Unit
           case "RSET"       => handler.reset
           case NOOPRegex(_) => Future(Response(250))
           case HELPRegex(_) => Future(Response(214))
-          case "QUIT" => Future(new Response(end = true).send(s"221 $domain Service closing transmission channel"))
+          case "QUIT" => Future(new Response(end = true).send(s"221 $hostname Service closing transmission channel"))
           case _      => Future(Response(500))
       else Future(Response(503))
     else
@@ -125,12 +125,12 @@ def server(domain: String, port: Int, flags: Int = 0, backlog: Int = 4096): Unit
       server accept client
       client readStart readCallback
       // todo: handler could be None
-      respond(new Response().send(s"220 $domain Simple Mail Transfer Service Ready"), client)
+      respond(new Response().send(s"220 $hostname Simple Mail Transfer Service Ready"), client)
   end connectionCallback
 
   server.bind("0.0.0.0", port, flags)
   server.listen(backlog, connectionCallback)
-  println(s"listening $domain:$port")
+  println(s"listening $hostname:$port")
   loop.run()
 
 def close(client: TCP): Unit =

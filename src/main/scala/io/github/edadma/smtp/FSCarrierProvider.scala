@@ -13,10 +13,10 @@ import scala.collection.mutable.ListBuffer
 
 private val TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS")
 
-class FSCarrierProvider(mailboxes: Path) extends CarrierProvider:
-  def handler: Option[Carrier] = Some(new FSCarrier(mailboxes))
+class FSCarrierProvider(mailboxes: Path, hostname: String) extends CarrierProvider:
+  def handler: Option[Carrier] = Some(new FSCarrier(mailboxes, hostname))
 
-class FSCarrier(mailboxes: Path) extends Carrier:
+class FSCarrier(mailboxes: Path, hostname: String) extends Carrier:
   val list = new ListBuffer[Path]
 
   def hello(domain: String): Future[Response] = Future(Response(250))
@@ -24,12 +24,14 @@ class FSCarrier(mailboxes: Path) extends Carrier:
   def from(sender: String): Future[Response] = Future(Response(250))
 
   def to(mailbox: String, domain: String): Future[Response] =
-    val path = mailboxes resolve mailbox
+    if domain != hostname then Future(Response(550))
+    else
+      val path = mailboxes resolve mailbox
 
-    if Files.exists(path) && Files.isExecutable(path) then
-      list += path
-      Future(Response(250))
-    else Future(Response(550))
+      if !Files.exists(path) || !Files.isExecutable(path) then Future(Response(550))
+      else
+        list += path
+        Future(Response(250))
 
   def message(headers: VectorMap[String, String], body: String): Future[Response] =
     val writes =
@@ -38,10 +40,15 @@ class FSCarrier(mailboxes: Path) extends Carrier:
         val nanos = f"${hrTime % 1000}%03d"
         val now = Instant.ofEpochSecond(sec, usec)
         val timestamp = TIMESTAMP_FORMAT.format(now.atOffset(ZoneOffset.UTC))
-        val filename = s"$timestamp-$nanos-$getHostname--"
+        val filename = s"$timestamp-$nanos-$hostname--"
         val path = r resolve filename
 
-        writeFile(path.toString, body, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR)
+        writeFile(
+          path.toString,
+          (headers map { case (k, v) => s"$k: $v" } mkString "\n") ++ "\n" ++ body,
+          O_WRONLY | O_CREAT,
+          S_IRUSR | S_IWUSR,
+        )
 
     Future.sequence(writes) map (_ => Response(250))
 
